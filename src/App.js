@@ -17,7 +17,7 @@ const App = () => {
 
   const editor = useMemo(() => withMentions(withReact(withHistory(createEditor()))), []);
 
-  const [value, setValue] = useState(initialValue);
+  const [value, setValue] = useState(JSON.parse(localStorage.getItem('content')) || initialValue);
   const [target, setTarget] = useState();
   const [search, setSearch] = useState('');
   const [index, setIndex] = useState(0);
@@ -79,7 +79,12 @@ const App = () => {
   }, []);
 
   const onChange = (newValue) => {
+    console.log('newValue ', newValue);
     setValue(newValue);
+
+    const content = JSON.stringify(newValue)
+    localStorage.setItem('content', content)
+
     const { selection } = editor
     console.log('selection ', selection);
 
