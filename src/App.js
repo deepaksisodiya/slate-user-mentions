@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState, useRef, useEffect } from 'react';
-import { createEditor, Editor, Range } from 'slate';
+import { createEditor, Editor, Range, Transforms } from 'slate';
 import { Slate, Editable, withReact, useSelected, useFocused, ReactEditor } from 'slate-react'
 import { withHistory } from 'slate-history'
 import ReactDOM from 'react-dom'
@@ -25,6 +25,37 @@ const App = () => {
 
   const chars = characters.filter(character => character.toLowerCase().startsWith(search.toLowerCase())).slice(0, 10);
   console.log('chars ', chars);
+
+  const onKeyDown = useCallback(
+    event => {
+      if (target) {
+        switch (event.key) {
+          case 'ArrowDown':
+            event.preventDefault()
+            const prevIndex = index >= chars.length - 1 ? 0 : index + 1
+            setIndex(prevIndex)
+            break
+          case 'ArrowUp':
+            event.preventDefault()
+            const nextIndex = index <= 0 ? chars.length - 1 : index - 1
+            setIndex(nextIndex)
+            break
+          case 'Tab':
+          case 'Enter':
+            event.preventDefault()
+            Transforms.select(editor, target)
+            insertMention(editor, chars[index])
+            setTarget(null)
+            break
+          case 'Escape':
+            event.preventDefault();
+            setTarget(null);
+            break
+        }
+      }
+    },
+    [index, search, target]
+  )
 
   useEffect(() => {
     // setting the position of dropdown users element
@@ -103,7 +134,7 @@ const App = () => {
         value={value}
         onChange={onChange}
       >
-        <Editable renderElement={renderElement} />
+        <Editable renderElement={renderElement} onKeyDown={onKeyDown} />
         {target && chars.length > 0 && (
         <Portal>
           <div
@@ -186,6 +217,17 @@ const Portal = ({ children }) => {
   return typeof document === 'object'
     ? ReactDOM.createPortal(children, document.body)
     : null
+}
+
+const insertMention = (editor, character) => {
+  const mention = {
+    type: 'mention',
+    character,
+    children: [{ text: '' }],
+  };
+
+  Transforms.insertNodes(editor, mention);
+  Transforms.move(editor);
 }
 
 export default App;
