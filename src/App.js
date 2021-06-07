@@ -1,7 +1,10 @@
-import React, {  useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState, useRef, useEffect } from 'react';
 import { createEditor, Editor, Range } from 'slate';
-import { Slate, Editable, withReact, useSelected, useFocused } from 'slate-react'
+import { Slate, Editable, withReact, useSelected, useFocused, ReactEditor } from 'slate-react'
 import { withHistory } from 'slate-history'
+import ReactDOM from 'react-dom'
+
+import characters from './characters';
 
 const initialValue = [
   {
@@ -18,6 +21,21 @@ const App = () => {
   const [target, setTarget] = useState();
   const [search, setSearch] = useState('');
   const [index, setIndex] = useState(0);
+  const ref = useRef();
+
+  const chars = characters.filter(character => character.toLowerCase().startsWith(search.toLowerCase())).slice(0, 10);
+  console.log('chars ', chars);
+
+  useEffect(() => {
+    // setting the position of dropdown users element
+    if (target && chars.length > 0) {
+      const el = ref.current
+      const domRange = ReactEditor.toDOMRange(editor, target)
+      const rect = domRange.getBoundingClientRect()
+      el.style.top = `${rect.top + window.pageYOffset + 24}px`
+      el.style.left = `${rect.left + window.pageXOffset}px`
+    }
+  }, [chars.length, editor, index, search, target]);
 
   const renderElement = useCallback(props => {
     const { attributes, children, element } = props;
@@ -86,6 +104,36 @@ const App = () => {
         onChange={onChange}
       >
         <Editable renderElement={renderElement} />
+        {target && chars.length > 0 && (
+        <Portal>
+          <div
+            ref={ref}
+            style={{
+              top: '-9999px',
+              left: '-9999px',
+              position: 'absolute',
+              zIndex: 1,
+              padding: '3px',
+              background: 'white',
+              borderRadius: '4px',
+              boxShadow: '0 1px 5px rgba(0,0,0,.2)',
+            }}
+          >
+            {chars.map((char, i) => (
+              <div
+                key={char}
+                style={{
+                  padding: '1px 3px',
+                  borderRadius: '3px',
+                  background: i === index ? '#B4D5FF' : 'transparent',
+                }}
+              >
+                {char}
+              </div>
+            ))}
+          </div>
+        </Portal>
+      )}
       </Slate>
     </div>
     
@@ -109,7 +157,7 @@ const withMentions = editor => {
   return editor
 }
 
-// mention render component
+// this component render mentions like -> @deepak @omkar
 const Mention = ({ attributes, children, element }) => {
   const selected = useSelected()
   const focused = useFocused()
@@ -132,6 +180,12 @@ const Mention = ({ attributes, children, element }) => {
       {children}
     </span>
   )
+}
+
+const Portal = ({ children }) => {
+  return typeof document === 'object'
+    ? ReactDOM.createPortal(children, document.body)
+    : null
 }
 
 export default App;
