@@ -7,7 +7,7 @@
 ## How to setup
 
 ```
-git clone https://github.com/deepaksisodiya/carousel.git
+git clone git@github.com:deepaksisodiya/slate-user-mentions.git
 yarn install
 ```
 
