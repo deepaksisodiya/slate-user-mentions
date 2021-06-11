@@ -1,4 +1,4 @@
-# News App
+# slate-user-mentions
 
 ## Technologies
 
