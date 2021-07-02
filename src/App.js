@@ -1,3 +1,4 @@
+/* eslint-disable default-case */
 import React, {
   useCallback,
   useMemo,
@@ -5,7 +6,13 @@ import React, {
   useRef,
   useEffect,
 } from "react";
-import { createEditor, Editor, Range, Transforms } from "slate";
+import {
+  createEditor,
+  Editor,
+  Range,
+  Transforms,
+  Element as SlateElement,
+} from "slate";
 import {
   Slate,
   Editable,
@@ -13,9 +20,11 @@ import {
   useSelected,
   useFocused,
   ReactEditor,
+  useSlate,
 } from "slate-react";
 import { withHistory } from "slate-history";
 import ReactDOM from "react-dom";
+import isUrl from "is-url";
 
 import characters from "./characters";
 
@@ -24,11 +33,27 @@ const initialValue = [
     type: "paragraph",
     children: [{ text: "A line of text in a paragraph." }],
   },
+  {
+    type: "paragraph",
+    children: [
+      {
+        text: "In addition to block nodes, you can create inline nodes, like ",
+      },
+      {
+        type: "link",
+        url: "https://en.wikipedia.org/wiki/Hypertext",
+        children: [{ text: "hyperlinks" }],
+      },
+      {
+        text: "!",
+      },
+    ],
+  },
 ];
 
 const App = () => {
   const editor = useMemo(
-    () => withMentions(withReact(withHistory(createEditor()))),
+    () => withLinks(withMentions(withReact(withHistory(createEditor())))),
     []
   );
 
@@ -94,6 +119,12 @@ const App = () => {
     switch (element.type) {
       case "mention":
         return <Mention {...props} />;
+      case "link":
+        return (
+          <a {...attributes} href={element.url}>
+            {children}
+          </a>
+        );
       default:
         return <p {...attributes}>{children}</p>;
     }
@@ -154,6 +185,10 @@ const App = () => {
   return (
     <div style={{ border: "1px solid" }}>
       <Slate editor={editor} value={value} onChange={onChange}>
+        <div>
+          <LinkButton />
+          <RemoveLinkButton />
+        </div>
         <Editable renderElement={renderElement} onKeyDown={onKeyDown} />
         {target && chars.length > 0 && (
           <Portal>
@@ -206,6 +241,130 @@ const withMentions = (editor) => {
 
   return editor;
 };
+
+// links code from here
+
+const withLinks = (editor) => {
+  const { insertData, insertText, isInline } = editor;
+
+  // link is inline element
+  editor.isInline = (element) => {
+    return element.type === "link" ? true : isInline(element);
+  };
+
+  // if text is URL then call wrapLink method
+  editor.insertText = (text) => {
+    if (text && isUrl(text)) {
+      wrapLink(editor, text);
+    } else {
+      insertText(text);
+    }
+  };
+
+  // if text is URL then call wrapLink method
+  editor.insertData = (data) => {
+    const text = data.getData("text/plain");
+
+    if (text && isUrl(text)) {
+      wrapLink(editor, text);
+    } else {
+      insertData(data);
+    }
+  };
+
+  return editor;
+};
+
+const wrapLink = (editor, url) => {
+  if (isLinkActive(editor)) {
+    unwrapLink(editor);
+  }
+
+  const { selection } = editor;
+
+  // if isCollapsed is true then both cursor start and end position are same
+  const isCollapsed = selection && Range.isCollapsed(selection);
+  const link = {
+    type: "link",
+    url,
+    children: isCollapsed ? [{ text: url }] : [],
+  };
+
+  if (isCollapsed) {
+    Transforms.insertNodes(editor, link);
+  } else {
+    Transforms.wrapNodes(editor, link, { split: true });
+    Transforms.collapse(editor, { edge: "end" });
+  }
+};
+
+const unwrapLink = (editor) => {
+  Transforms.unwrapNodes(editor, {
+    match: (n) =>
+      !Editor.isEditor(n) && SlateElement.isElement(n) && n.type === "link",
+  });
+};
+
+const isLinkActive = (editor) => {
+  const [link] = Editor.nodes(editor, {
+    match: (n) =>
+      !Editor.isEditor(n) && SlateElement.isElement(n) && n.type === "link",
+  });
+  return !!link;
+};
+
+export const Button = React.forwardRef(
+  ({ active, reversed, buttonStyle, ...props }, ref) => {
+    const style = { cursor: "pointer", color: "black" };
+    if (active) {
+      style.color = "red";
+    }
+    return <span {...props} ref={ref} style={{ ...style, ...buttonStyle }} />;
+  }
+);
+
+const insertLink = (editor, url) => {
+  if (editor.selection) {
+    wrapLink(editor, url);
+  }
+};
+
+const LinkButton = () => {
+  const editor = useSlate();
+  return (
+    <Button
+      active={isLinkActive(editor)}
+      onMouseDown={(event) => {
+        event.preventDefault();
+        const url = window.prompt("Enter the URL of the link:");
+        if (!url) return;
+        insertLink(editor, url);
+      }}
+      buttonStyle={{ marginRight: "10px" }}
+    >
+      Link
+    </Button>
+  );
+};
+
+const RemoveLinkButton = () => {
+  const editor = useSlate();
+
+  return (
+    <Button
+      active={isLinkActive(editor)}
+      onMouseDown={() => {
+        if (isLinkActive(editor)) {
+          unwrapLink(editor);
+        }
+      }}
+    >
+      Remove link
+    </Button>
+  );
+};
+
+// link code ends here
 
 // this component render mentions like -> @deepak @omkar
 const Mention = ({ attributes, children, element }) => {
